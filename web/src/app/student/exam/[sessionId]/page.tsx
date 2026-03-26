@@ -110,6 +110,14 @@ export default function ActiveExam() {
       alert('이미 종료된 시험입니다.');
       return router.push(`/student/result/${sessionId}`);
     }
+
+    // 1.5 Check for existing submission (to prevent double-taking without permission)
+    const sId = localStorage.getItem('popquiz_student_id');
+    const { data: existingSub } = await supabase.from('exam_submissions').select('id').eq('session_id', sessionId).eq('student_id', sId).maybeSingle();
+    if (existingSub) {
+      return router.push(`/student/result/${sessionId}`);
+    }
+
     setSessionData(session);
     
     // Resume Time Logic
@@ -266,6 +274,16 @@ export default function ActiveExam() {
                 const h1 = document.querySelector('h1');
                 if (h1) h1.innerText = session.title;
                 fallbackTimeLeft = session.total_duration_minutes * 60;
+
+                // 1.5 Check for existing submission (Fallback)
+                const subResp = await fetch(SUPABASE_URL + "/rest/v1/exam_submissions?session_id=eq." + sessionId + "&student_id=eq." + studentId, {
+                  headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
+                });
+                const subData = await subResp.json();
+                if (subData && subData.length > 0) {
+                  window.location.href = "/student/result/" + sessionId;
+                  return;
+                }
 
                 const tResp = await fetch(SUPABASE_URL + "/rest/v1/exam_templates?session_id=eq." + sessionId + "&is_retake=eq.false", {
                   headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }

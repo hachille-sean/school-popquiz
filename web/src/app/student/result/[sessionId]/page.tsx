@@ -23,29 +23,42 @@ export default function StudentResult() {
     fetchData(sId);
 
     // Subscribe to realtime changes on exam_sessions
-    const channel = supabase.channel(`result_room_${sessionId}`)
+    const sessionChannel = supabase.channel(`result_session_${sessionId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'exam_sessions', filter: `id=eq.${sessionId}` }, (payload) => {
         const updated = payload.new as any;
         setSessionData(updated);
         if (updated.status === 'finished') {
-          fetchData(sId); // Refetch submission to display answers
+          fetchData(sId);
         }
       })
       .subscribe();
 
+    // Subscribe to submission changes (e.g. deletion for re-take)
+    const subChannel = supabase.channel(`result_sub_${sessionId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exam_submissions', filter: `session_id=eq.${sessionId}` }, () => {
+        fetchData(sId);
+      })
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(sessionChannel);
+      supabase.removeChannel(subChannel);
     };
   }, [sessionId, router]);
 
   async function fetchData(studentId: string) {
     // Fetch session
-    const { data: session } = await supabase.from('exam_sessions').select('*').eq('id', sessionId).single();
+    const { data: session } = await supabase.from('exam_sessions').select('*').eq('id', sessionId).maybeSingle();
     if (session) setSessionData(session);
 
     // Fetch submission
-    const { data: sub } = await supabase.from('exam_submissions').select('*').eq('session_id', sessionId).eq('student_id', studentId).single();
-    if (sub) setSubmission(sub);
+    const { data: sub } = await supabase.from('exam_submissions').select('*').eq('session_id', sessionId).eq('student_id', studentId).maybeSingle();
+    setSubmission(sub);
+
+    // AUTO-REDIRECT: If session is active but submission is missing, it means teacher allowed a re-take or student never started.
+    if (session?.status === 'active' && !sub) {
+       router.push(`/student/exam/${sessionId}`);
+    }
   }
 
   // Removed the blocker to prevent mobile hang
@@ -109,6 +122,13 @@ export default function StudentResult() {
                   headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
                 });
                 const subData = await subResp.json();
+                
+                // AUTO-REDIRECT in Fallback
+                if (sData[0]?.status === 'active' && (!subData || subData.length === 0)) {
+                  window.location.href = "/student/exam/" + sessionId;
+                  return;
+                }
+
                 if (subData && subData[0]) {
                   const sub = subData[0];
                   // Update Score
