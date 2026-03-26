@@ -73,7 +73,7 @@ export default function StudentResult() {
   }
 
   // If FINISHED, show results
-  const maxScore = submission.answers.length;
+  const maxScore = submission?.answers?.length || 0;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 p-8 font-sans pb-24 relative overflow-hidden">
@@ -113,7 +113,7 @@ export default function StudentResult() {
                   const sub = subData[0];
                   // Update Score
                   const scoreEl = document.querySelector('.text-6xl.font-black.text-blue-600');
-                  if (scoreEl) scoreEl.innerHTML = sub.total_score + ' <span class="text-3xl text-slate-300">/ ' + sub.answers.length + '</span>';
+                  if (scoreEl && sub.answers) scoreEl.innerHTML = sub.total_score + ' <span class="text-3xl text-slate-300">/ ' + sub.answers.length + '</span>';
 
                   // 3. Render Detail List
                   const listContainer = document.querySelector('.grid.grid-cols-1.gap-4:last-of-type');
@@ -173,11 +173,11 @@ export default function StudentResult() {
           <div className="mt-8">
             <span className="text-slate-500 font-medium text-lg">내 점수</span>
             <div className="text-6xl font-black text-blue-600 mt-2">
-              {submission?.total_score ?? '-'} <span className="text-3xl text-slate-300">/ {submission?.answers?.length || '-'}</span>
+              {submission?.total_score ?? '-'} <span className="text-3xl text-slate-300">/ {maxScore || '-'}</span>
             </div>
           </div>
           
-          {submission.is_cheated && (
+          {submission?.is_cheated && (
             <div className="mt-6 inline-block bg-red-50 text-red-600 px-6 py-3 rounded-2xl font-bold border border-red-200">
               🚨 화면 이탈(부정행위)로 인해 강제 제출된 답안입니다.
             </div>
