@@ -314,7 +314,7 @@ export default function MonitoringDashboard() {
                               <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-black animate-pulse">
                                 ⏱️ 남은 시간: {(() => {
                                   const totalSec = s.total_duration_minutes * 60;
-                                  const elapsed = Math.floor((now - new Date(s.created_at).getTime()) / 1000); // Fallback to created_at
+                                  const elapsed = Math.floor((now - new Date(s.created_at).getTime()) / 1000); 
                                   const remaining = Math.max(0, totalSec - elapsed);
                                   const mm = Math.floor(remaining / 60);
                                   const ss = remaining % 60;
@@ -326,21 +326,17 @@ export default function MonitoringDashboard() {
                         </div>
 
                         <div className="flex gap-3 items-center">
-                          {s.status === 'active' && (
-                            <button onClick={() => handleExpandSession(s.id)} className="px-5 py-3 bg-purple-100 text-purple-700 font-bold rounded-xl hover:bg-purple-200 transition-colors">
-                              {expandedSessionId === s.id ? '진행상황 숨기기' : '현황 모니터링'}
-                            </button>
-                          )}
-                          {s.status === 'waiting' && (
-                            <button onClick={() => handleExpandSession(s.id)} className="px-5 py-3 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200 transition-colors">
-                              {expandedSessionId === s.id ? '대기실 숨기기' : '대기실 접속 확인'}
-                            </button>
-                          )}
-                          {s.status === 'finished' && (
-                            <button onClick={() => handleExpandSession(s.id)} className="px-5 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors">
-                              {expandedSessionId === s.id ? '결과 숨기기' : '결과 확인'}
-                            </button>
-                          )}
+                          <button 
+                            onClick={() => handleExpandSession(s.id)} 
+                            className={`px-5 py-3 font-bold rounded-xl transition-colors ${
+                              s.status === 'active' ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' :
+                              s.status === 'waiting' ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' :
+                              'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            }`}
+                          >
+                            {expandedSessionId === s.id ? '상세 숨기기' : s.status === 'waiting' ? '대기실 확인' : '상세 결과 확인'}
+                          </button>
+                          
                           {s.status === 'waiting' && (
                             <button onClick={() => handleStart(s.id)} className="px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-sm">
                               🚀 시험 개시
@@ -468,15 +464,129 @@ export default function MonitoringDashboard() {
                     {sessions.filter(s => s.target_class === selectedClass).map(s => {
                       const classSubs = allSubmissions.filter(sub => sub.session_id === s.id);
                       return (
-                        <div key={s.id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center">
-                          <div>
-                            <h4 className="font-bold text-lg">{s.title}</h4>
-                            <span className="text-sm text-slate-500">
-                              상태: {s.status === 'active' ? '진행 중' : s.status === 'waiting' ? '대기 중' : '종료됨'} | 
-                              제출: {classSubs.length}명 / {s.expected_students || '?'}명
-                            </span>
+                        <div key={s.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+                          <div className="p-6 flex flex-col md:flex-row gap-6 items-center justify-between">
+                            <div>
+                              <h4 className="text-lg font-bold flex items-center gap-3">
+                                {s.title}
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${s.status === 'waiting' ? 'bg-amber-100 text-amber-700' : s.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                                  {s.status === 'waiting' ? '대기 중' : s.status === 'active' ? '진행 중' : '종료됨'}
+                                </span>
+                              </h4>
+                              <div className="text-slate-500 mt-2 flex flex-wrap gap-4 text-xs font-medium items-center">
+                                <span className="bg-slate-100 px-2 py-1 rounded-md">제출: {classSubs.length}명 / {s.expected_students || '?'}명</span>
+                                <span className="bg-slate-100 px-2 py-1 rounded-md">문항: {s.q_en_count + s.q_kr_count + s.q_ext_count}문항</span>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => handleExpandSession(s.id)} 
+                                className={`px-4 py-2 font-bold rounded-xl text-sm transition-all ${expandedSessionId === s.id ? 'bg-slate-800 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                              >
+                                {expandedSessionId === s.id ? '상세 숨기기' : '상세 결과 확인'}
+                              </button>
+                            </div>
                           </div>
-                          <button onClick={() => { setActiveTab('session'); handleExpandSession(s.id); }} className="px-4 py-2 bg-slate-800 text-white font-bold rounded-xl text-sm">상세 보기</button>
+
+                          {/* Expansion Area (Shared Logic) */}
+                          {expandedSessionId === s.id && (
+                            <div className="bg-slate-50 p-6 border-t border-slate-100">
+                              {s.status === 'active' || s.status === 'finished' ? (
+                                <>
+                                  <h3 className="font-bold text-slate-700 mb-4 flex items-center justify-between">
+                                    <span>실시간 제출 현황 ({activeSubmissions.length}건)</span>
+                                    <button onClick={() => fetchSubmissionsForSession(s.id)} className="text-xs bg-white border border-slate-200 px-3 py-1 rounded text-slate-500 hover:text-slate-800">새로고침 ↻</button>
+                                  </h3>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {activeSubmissions.map((sub: any) => (
+                                      <div key={sub.id} className="bg-white border border-slate-200 rounded-xl flex flex-col shadow-sm overflow-hidden">
+                                        <div className="p-4 flex justify-between items-center bg-white">
+                                          <div>
+                                            <span className="font-bold text-slate-800 block text-sm">{sub.popquiz_users?.name} <span className="text-slate-400 font-medium text-xs ml-1">{sub.popquiz_users?.student_number}</span></span>
+                                            <div className="flex gap-2 items-center mt-1">
+                                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sub.is_cheated ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                {sub.is_cheated ? '부정행위 감지됨' : '정상 제출됨'}
+                                              </span>
+                                              <span className="text-xs font-black text-purple-600">{sub.total_score}점</span>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                             <button onClick={() => handleAllowResume(sub.id, sub.popquiz_users?.name)} className="bg-orange-50 text-orange-600 border border-orange-200 px-3 py-1.5 rounded-lg text-xs font-black hover:bg-orange-100 transition-colors">재응시 허용</button>
+                                             <button 
+                                               onClick={() => setDetailedSubmissionId(detailedSubmissionId === sub.id ? null : sub.id)}
+                                               className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors"
+                                             >
+                                               {detailedSubmissionId === sub.id ? '닫기' : '상세보기'}
+                                             </button>
+                                          </div>
+                                        </div>
+
+                                        {detailedSubmissionId === sub.id && (
+                                          <div className="p-4 bg-slate-50 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            {(sub.answers || []).map((ans: any, qIdx: number) => {
+                                              const qTitle = ans.question?.word?.en || ans.question?.word?.kr || ans.question?.word || `문항 ${qIdx+1}`;
+                                              const pKey = `${sub.id}_${qIdx}`;
+                                              return (
+                                                <div key={qIdx} className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-3 text-xs">
+                                                  <div className="flex justify-between items-center">
+                                                    <div>
+                                                      <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">Q{qIdx+1}. {qTitle}</div>
+                                                      <div className="font-bold">학생 답: {ans.submitted_answer || '(미입력)'}</div>
+                                                    </div>
+                                                    <span className={`px-2 py-1 rounded-md font-black ${ans.is_correct ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                                      {ans.is_correct ? '정답' : '오답'}
+                                                    </span>
+                                                  </div>
+                                                  
+                                                  {!ans.is_correct && (
+                                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col gap-2">
+                                                      <div className="flex gap-2">
+                                                        <input 
+                                                          type="number" step="0.1" placeholder="점수" 
+                                                          value={partialState[pKey]?.score || ans.partial_score || ''}
+                                                          onChange={e => setPartialState(prev => ({...prev, [pKey]: {...(prev[pKey]||{reason:ans.reason||''}), score: e.target.value}}))}
+                                                          className="w-16 bg-white border border-slate-200 rounded p-1 focus:outline-blue-500" 
+                                                        />
+                                                        <input 
+                                                          type="text" placeholder="사유" 
+                                                          value={partialState[pKey]?.reason || ans.reason || ''}
+                                                          onChange={e => setPartialState(prev => ({...prev, [pKey]: {...(prev[pKey]||{score:ans.partial_score||''}), reason: e.target.value}}))}
+                                                          className="flex-1 bg-white border border-slate-200 rounded p-1 focus:outline-blue-500" 
+                                                        />
+                                                        <button onClick={() => handleUpdatePartialScore(sub, qIdx)} className="bg-blue-600 text-white px-2 py-1 rounded font-bold text-[10px]">적용</button>
+                                                      </div>
+                                                    </div>
+                                                  )}
+                                                  {(ans.is_correct || ans.partial_score > 0) && (
+                                                    <div className="text-[10px] font-bold text-purple-600">
+                                                      배점: {ans.is_correct ? '0.5' : ans.partial_score}점 {ans.reason && `(${ans.reason})`}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                    {activeSubmissions.length === 0 && <div className="col-span-2 text-center py-4 text-slate-400 text-sm">기록이 없습니다.</div>}
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <h3 className="font-bold text-slate-700 mb-3">현재 대기실 접속자 ({waitingStudents.length}명)</h3>
+                                  <div className="flex flex-wrap gap-2">
+                                    {waitingStudents.map((stu: any, idx: number) => (
+                                      <span key={idx} className="bg-indigo-100 text-indigo-800 font-bold px-3 py-1.5 rounded-lg text-xs">
+                                        {stu.student_number}({stu.name})
+                                      </span>
+                                    ))}
+                                    {waitingStudents.length === 0 && <div className="text-slate-400 text-sm italic">대기 중인 학생이 없습니다.</div>}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
