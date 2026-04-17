@@ -19,7 +19,7 @@ export default function TeacherDashboard() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
           <Link 
             href="/teacher/word-pools" 
             className="group block p-8 bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-xl hover:border-blue-200 transition-all hover:-translate-y-1"
