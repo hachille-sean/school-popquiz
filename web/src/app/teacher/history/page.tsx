@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 
 export default function HistoricalResults() {
   const [activeTab, setActiveTab] = useState<'session' | 'class' | 'student'>('session');
@@ -17,6 +18,12 @@ export default function HistoricalResults() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [studentClassFilter, setStudentClassFilter] = useState('');
+
+  // Excel Export States
+  const [showExportPanel, setShowExportPanel] = useState(false);
+  const [exportExamFilter, setExportExamFilter] = useState('all');
+  const [exportClassFilter, setExportClassFilter] = useState('all');
+  const [exportStudentQuery, setExportStudentQuery] = useState('');
 
   useEffect(() => {
     fetchSessions();
@@ -129,6 +136,65 @@ export default function HistoricalResults() {
   
   const selectedStudentData: any = selectedStudentNum ? studentsMap[selectedStudentNum as keyof typeof studentsMap] : null;
 
+  const handleExportExcel = () => {
+    const data = allSubmissions
+      .filter(sub => {
+        const matchesExam = exportExamFilter === 'all' || sub.exam_sessions.title === exportExamFilter;
+        const matchesClass = exportClassFilter === 'all' || sub.exam_sessions.target_class === exportClassFilter;
+        const matchesStudent = exportStudentQuery === '' || 
+          sub.popquiz_users.name.includes(exportStudentQuery) || 
+          String(sub.popquiz_users.student_number).includes(exportStudentQuery);
+        return matchesExam && matchesClass && matchesStudent;
+      })
+      .sort((a, b) => {
+        // Sort by student number for a cleaner Excel file
+        return String(a.popquiz_users.student_number).localeCompare(String(b.popquiz_users.student_number));
+      })
+      .map(sub => {
+        const snum = String(sub.popquiz_users.student_number);
+        // Extract 반 (30105 -> 1)
+        const classNum = snum.length >= 3 ? parseInt(snum.substring(1, 3), 10) : '';
+        // Extract 번호 (30105 -> 5)
+        const studentNum = snum.length >= 5 ? parseInt(snum.substring(3, 5), 10) : '';
+        
+        return {
+          '과목': '영어Ⅱ (3)',
+          '반': classNum,
+          '번호': studentNum,
+          '학생이름': sub.popquiz_users?.name || '알수없음',
+          'n/a': '',
+          '점수': sub.total_score,
+          '시험제목': sub.exam_sessions?.title || ''
+        };
+      });
+
+    if (data.length === 0) {
+      alert('조건에 맞는 데이터가 없습니다.');
+      return;
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "시험결과");
+    
+    // Set column widths
+    const wscols = [
+      {wch: 15}, // 과목
+      {wch: 5},  // 반
+      {wch: 5},  // 번호
+      {wch: 12}, // 학생이름
+      {wch: 5},  // n/a
+      {wch: 8},  // 점수
+      {wch: 30}, // 시험제목
+    ];
+    worksheet['!cols'] = wscols;
+
+    XLSX.writeFile(workbook, `시험결과_정리_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  // Get unique titles for filter
+  const uniqueTitles = Array.from(new Set(sessions.map(s => s.title))).sort();
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 p-8 font-sans flex flex-col items-center">
       <div className="w-full max-w-7xl flex gap-6 flex-col">
@@ -140,11 +206,69 @@ export default function HistoricalResults() {
           </h1>
           
           <div className="flex gap-2">
+            <button 
+              onClick={() => setShowExportPanel(!showExportPanel)} 
+              className={`px-5 py-3 rounded-xl font-bold transition-all shadow-sm border ${showExportPanel ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-emerald-600 border-emerald-100 hover:bg-emerald-50'}`}
+            >
+              📊 Excel 결과 정리
+            </button>
+            <div className="w-px bg-slate-200 mx-1"></div>
             <button onClick={() => { setActiveTab('session'); setSelectedSession(null); }} className={`px-5 py-3 rounded-xl font-bold transition-all shadow-sm ${activeTab === 'session' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>📚 시험 회차별 보기</button>
             <button onClick={() => { setActiveTab('class'); setSelectedClass(null); }} className={`px-5 py-3 rounded-xl font-bold transition-all shadow-sm ${activeTab === 'class' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>🏫 학급(반)별 보기</button>
             <button onClick={() => { setActiveTab('student'); setSelectedStudentNum(null); }} className={`px-5 py-3 rounded-xl font-bold transition-all shadow-sm ${activeTab === 'student' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>🧑‍🎓 개별 학생별 추적</button>
           </div>
         </header>
+
+        {showExportPanel && (
+          <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-3xl shadow-sm flex flex-col gap-4 animate-in slide-in-from-top-4 duration-300">
+            <div className="flex flex-col md:flex-row gap-4 items-end">
+              <div className="flex-1 flex flex-col gap-2">
+                <label className="text-xs font-black text-emerald-700 ml-1">시험 제목 필터</label>
+                <select 
+                  value={exportExamFilter} 
+                  onChange={e => setExportExamFilter(e.target.value)}
+                  className="w-full bg-white border border-emerald-200 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-400 appearance-none"
+                >
+                  <option value="all">모든 시험 포함</option>
+                  {uniqueTitles.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              
+              <div className="flex-1 flex flex-col gap-2">
+                <label className="text-xs font-black text-emerald-700 ml-1">학급(반) 필터</label>
+                <select 
+                  value={exportClassFilter} 
+                  onChange={e => setExportClassFilter(e.target.value)}
+                  className="w-full bg-white border border-emerald-200 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-400 appearance-none"
+                >
+                  <option value="all">모든 학급 포함</option>
+                  {classesList.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div className="flex-1 flex flex-col gap-2">
+                <label className="text-xs font-black text-emerald-700 ml-1">학생 검색 (선택)</label>
+                <input 
+                  type="text" 
+                  placeholder="이름/학번..." 
+                  value={exportStudentQuery}
+                  onChange={e => setExportStudentQuery(e.target.value)}
+                  className="w-full bg-white border border-emerald-200 rounded-xl p-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+
+              <button 
+                onClick={handleExportExcel}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-8 py-3 rounded-xl shadow-lg shadow-emerald-200 transition-all flex items-center gap-2 whitespace-nowrap"
+              >
+                📥 Excel 다운로드
+              </button>
+            </div>
+            <p className="text-[10px] text-emerald-600 font-bold ml-1">
+              * 과목명은 '영어Ⅱ (3)'으로 고정되어 출력됩니다. 학번에서 반과 번호를 자동으로 추출하여 정리합니다.
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* LEFT SIDEBAR */}

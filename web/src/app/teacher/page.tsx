@@ -58,6 +58,19 @@ export default function TeacherDashboard() {
               학생들의 접속 현황 및 화면 이탈 이력을 모니터링하고 시험 결과를 확인합니다.
             </p>
           </Link>
+
+          <Link 
+            href="/teacher/history" 
+            className="group block p-8 bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-xl hover:border-emerald-200 transition-all hover:-translate-y-1"
+          >
+            <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+              📊
+            </div>
+            <h2 className="text-xl font-bold mb-2">과거 기록 및 Excel 출력</h2>
+            <p className="text-slate-500 font-medium leading-relaxed">
+              지난 시험 결과들을 확인하고, 요청하신 형식에 맞춰 Excel 파일로 정리하여 내려받습니다.
+            </p>
+          </Link>
         </div>
       </div>
     </div>
